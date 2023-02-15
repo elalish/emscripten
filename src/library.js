@@ -81,7 +81,7 @@ mergeInto(LibraryManager.library, {
         // The pthread may have decided not to exit its own runtime, for example
         // because it runs a main loop, but that doesn't affect the main thread.
         exitOnMainThread(status);
-        throw 'unwind';
+        throw new ExitStatus(status);
       } else {
 #if PTHREADS_DEBUG
 #if EXIT_RUNTIME

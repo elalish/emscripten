@@ -10,6 +10,9 @@ int main() {
     out("runtimeKeepalivePush done");
     counter = 0;
     function timerCallback() {
+      if (runtimeExited) {
+        return;
+      }
       if (counter < 5) {
         runtimeKeepalivePush();
         out("runtimeKeepalivePush done");

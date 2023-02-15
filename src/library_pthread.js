@@ -136,6 +136,15 @@ var LibraryPThread = {
 #endif
     },
 
+    terminate: function(worker) {
+      worker.terminate();
+      // terminate() can be asynchronous, but we never want to hear back from
+      // this worker again, even if doesn't get killed right away.
+      // This avoids having to check in each of the onmessage handlers if the
+      // message was coming from valid worker.
+      worker.onmessage = () => {};
+    },
+
 #if PTHREADS_PROFILING
     getThreadName: function(pthreadPtr) {
       var profilerBlock = {{{ makeGetValue('pthreadPtr', C_STRUCTS.pthread.profilerBlock, POINTER_TYPE) }}};
@@ -183,10 +192,10 @@ var LibraryPThread = {
       // returned.  For this reason, we don't call `returnWorkerToPool` here or
       // free the underlying pthread data structures.
       for (var worker of PThread.runningWorkers) {
-        worker.terminate();
+        PThread.terminate(worker);
       }
       for (var worker of PThread.unusedWorkers) {
-        worker.terminate();
+        PThread.terminate(worker);
       }
       PThread.unusedWorkers = [];
       PThread.runningWorkers = [];
@@ -531,7 +540,7 @@ var LibraryPThread = {
 #endif
     var worker = PThread.pthreads[pthread_ptr];
     delete PThread.pthreads[pthread_ptr];
-    worker.terminate();
+    PThread.terminate(worker);
     __emscripten_thread_free_data(pthread_ptr);
     // The worker was completely nuked (not just the pthread execution it was hosting), so remove it from running workers
     // but don't put it back to the pool.
@@ -545,6 +554,9 @@ var LibraryPThread = {
     // entry point, calls pthread_exit, or acts upon a cancellation.
     // Detached threads are responsible for calling this themselves,
     // otherwise pthread_join is responsible for calling this.
+#if PTHREADS_DEBUG
+    dbg('__emscripten_thread_cleanup: ' + ptrToString(thread))
+#endif
     if (!ENVIRONMENT_IS_PTHREAD) cleanupThread(thread);
     else postMessage({ 'cmd': 'cleanupThread', 'thread': thread });
   },

@@ -172,24 +172,6 @@ var read_,
     readBinary,
     setWindowTitle;
 
-#if ENVIRONMENT_MAY_BE_SHELL || ENVIRONMENT_MAY_BE_NODE || ASSERTIONS
-// Normally we don't log exceptions but instead let them bubble out the top
-// level where the embedding environment (e.g. the browser) can handle
-// them.
-// However under v8 and node we sometimes exit the process direcly in which case
-// its up to use us to log the exception before exiting.
-// If we fix https://github.com/emscripten-core/emscripten/issues/15080
-// this may no longer be needed under node.
-function logExceptionOnExit(e) {
-  if (e instanceof ExitStatus) return;
-  let toLog = e;
-  if (e && typeof e == 'object' && e.stack) {
-    toLog = [e, e.stack];
-  }
-  err('exiting due to exception: ' + toLog);
-}
-#endif
-
 #if ENVIRONMENT_MAY_BE_NODE
 if (ENVIRONMENT_IS_NODE) {
 #if ENVIRONMENT && ASSERTIONS
@@ -241,7 +223,7 @@ if (ENVIRONMENT_IS_NODE) {
 #if NODEJS_CATCH_EXIT
   process.on('uncaughtException', function(ex) {
     // suppress ExitStatus exceptions from showing an error
-    if (!(ex instanceof ExitStatus)) {
+    if (!(ex instanceof ExitStatus) && !(ex.context instanceof ExitStatus)) {
       throw ex;
     }
   });
@@ -260,12 +242,8 @@ if (ENVIRONMENT_IS_NODE) {
 #endif
 
   quit_ = (status, toThrow) => {
-    if (keepRuntimeAlive()) {
-      process.exitCode = status;
-      throw toThrow;
-    }
-    logExceptionOnExit(toThrow);
-    process.exit(status);
+    process.exitCode = status;
+    throw toThrow;
   };
 
   Module['inspect'] = function () { return '[Emscripten Module object]'; };
@@ -337,6 +315,22 @@ if (ENVIRONMENT_IS_SHELL) {
     arguments_ = scriptArgs;
   } else if (typeof arguments != 'undefined') {
     arguments_ = arguments;
+  }
+
+  // Normally we don't log exceptions but instead let them bubble out the top
+  // level where the embedding environment (e.g. the browser) can handle
+  // them.
+  // However under the v8 shell we sometimes exit the process direcly in which
+  // case its up to use us to log the exception before exiting.
+  // If we fix https://github.com/emscripten-core/emscripten/issues/15080
+  // this may no longer be needed under node.
+  function logExceptionOnExit(e) {
+    if (e instanceof ExitStatus) return;
+    let toLog = e;
+    if (e && typeof e == 'object' && e.stack) {
+      toLog = [e, e.stack];
+    }
+    err('exiting due to exception: ' + toLog);
   }
 
   if (typeof quit == 'function') {
